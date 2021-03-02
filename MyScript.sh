@@ -1,7 +1,7 @@
 #!/bin/bash
 #server local time
 VPS_TIME='Asia/Manila'
-function InstUpdates(){
+function 
  export DEBIAN_FRONTEND=noninteractive
  apt-get update
  apt-get upgrade -y
@@ -248,31 +248,8 @@ TVxXp5vGwz5umT+nrSnjrkgO6h8=
 -----END PRIVATE KEY-----
 EOF3
 #singin the server key using CA
-openssl dhparam -out /etc/openvpn/dh.pem 2048
-#configure openvn server
-cat <<EOF4> /etc/openvpn/server.conf
-port $openvpn_port
-proto tcp
-dev tun
-ca /usr/share/doc/openvpn/examples/sample-keys/ca.crt
-cert /etc/openvpn/server.crt
-key /etc/openvpn/easy-rsa/keys/server.key
-dh /etc/openvpn/dh.pem
-server 10.8.0.0 255.255.255.0
-push "redirect-gateway def1"
+openssl "
 
-push "dhcp-option DNS 208.67.222.222"
-push "dhcp-option DNS 208.67.220.220"
-duplicate-cn
-cipher AES-256-CBC
-tls-version-min 1.2
-tls-cipher TLS-DHE-RSA-WITH-AES-256-GCM-SHA384:TLS-DHE-RSA-WITH-AES-256-CBC-SHA256:TLS-DHE-RSA-WITH-AES-128-GCM-SHA256:TLS-DHE-RSA-WITH-AES-128-CBC-SHA256
-auth SHA512
-auth-nocache
-keepalive 20 60
-persist-key
-persist-tun
-compress lz4
 daemon
 user nobody
 group nogroup
