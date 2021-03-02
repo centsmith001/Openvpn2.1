@@ -60,7 +60,7 @@ myPrivoxy
 privoxy
 
  # Setting machine's IP Address inside of our privoxy config(security that only allows this machine to use this proxy server)
- sed -i "s|IP-ADDRESS|$IPADDR|g" /etc/privoxy/config
+ #sed -i "s|IP-ADDRESS|$IPADDR|g" /etc/privoxy/config
  
  # Setting privoxy ports
  sed -i "s|Privoxy_Port1|$Privoxy_Port1|g" /etc/privoxy/config
@@ -78,7 +78,8 @@ function openvpn (){
     mkdir /etc/openvpn/easy-rsa
     mkdir /etc/openvpn/easy-rsa/keys
     mkdir /etc/openvpn/xFocus
-    #install openvpn
+    #touch /etc/openvpn/xFocus/config.ovpn
+#install openvpn
     apt-get install openvpn -y
     cp -r /usr/share/easy-rsa /etc/openvpn/
     #ca.crt here
@@ -305,7 +306,7 @@ persist-tun
 mute-replay-warnings
 verb 2
 EOF5
-systemctl status openvpn@server
+#systemctl status openvpn@server
 }
 openvpn
 
@@ -314,20 +315,21 @@ function ip_address(){
   [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipv4.icanhazip.com )"
   [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipinfo.io/ip )"
   [ ! -z "${IP}" ] && echo "${IP}" || echo
-} 
+}
 IPADDR="$(ip_address)"
-ip_address
 
 function ConfStartup(){
  # Daily reboot time of our machine
  # For cron commands, visit https://crontab.guru
  echo -e "0 4\t* * *\troot\treboot" > /etc/cron.d/b_reboot_job
+ }
+ ConfStartup
  #creating user's opvn config
-cat <<EOF6> /etc/openvpn/xFocus/config.ovpn
+cat <<EOF999> /etc/openvpn/xFocus/config.ovpn
 client
 dev tun
 proto tcp
-remote $IPADDR $OpenVPN_Port1
+remote $IPADDR $openvpn_port
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -350,4 +352,37 @@ http-proxy $IPADDR $Privoxy_Port1
 <ca>
 $(cat /etc/openvpn/easy-rsa/keys/ca.crt)
 </ca>
-EOF6
+EOF999
+ip_address
+ # I'm setting Some Squid workarounds to prevent Privoxy's overflowing file descriptors that causing 50X error when clients trying to connect to your proxy server(thanks for this trick @homer_simpsons)
+ rm -rf /etc/squid/sq*
+ cat <<'mySquid' > /etc/squid/squid.conf
+via off
+forwarded_for delete
+request_header_access Authorization allow all
+request_header_access Proxy-Authorization allow all
+request_header_access Cache-Control allow all
+request_header_access Content-Length allow all
+request_header_access Content-Type allow all
+request_header_access Date allow all
+request_header_access Host allow all
+request_header_access If-Modified-Since allow all
+request_header_access Pragma allow all
+request_header_access Accept allow all
+request_header_access Accept-Charset allow all
+request_header_access Accept-Encoding allow all
+request_header_access Accept-Language allow all
+request_header_access Connection allow all
+request_header_access X-Forwarded-For deny all
+request_header_access Via deny all
+request_header_access Referer deny all
+request_header_access All deny all
+http_access allow localhost
+http_access deny all
+http_port 127.0.0.1:8989
+cache_peer 127.0.0.1 parent SquidCacheHelper 7 no-query no-digest default
+cache deny all
+mySquid
+ sed -i "s|SquidCacheHelper|$privoxy_port1|g" /etc/squid/squid.conf
+clear
+echo 'Installation Complete!'
