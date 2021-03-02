@@ -60,7 +60,7 @@ myPrivoxy
 privoxy
 
  # Setting machine's IP Address inside of our privoxy config(security that only allows this machine to use this proxy server)
- #sed -i "s|IP-ADDRESS|$IPADDR|g" /etc/privoxy/config
+ sed -i "s|IP-ADDRESS|$IPADDR|g" /etc/privoxy/config
  
  # Setting privoxy ports
  sed -i "s|Privoxy_Port1|$Privoxy_Port1|g" /etc/privoxy/config
@@ -83,9 +83,8 @@ function openvpn (){
     apt-get install openvpn -y
     cp -r /usr/share/easy-rsa /etc/openvpn/
     #ca.crt here
-    cat <<EOF1> /etc/openvpn/easy-rsa/keys/ca.crt
-#or /usr/share/doc/openvpn/examples/sample-keys/ca.crt
-    -----BEGIN CERTIFICATE-----
+    cat <<EOF1> /etc/openvpn/easy-rsa/keys/ca.crt #or /usr/share/doc/openvpn/examples/sample-keys/ca.crt
+-----BEGIN CERTIFICATE-----
 MIIE6DCCA9CgAwIBAgIJAISjqDk245utMA0GCSqGSIb3DQEBCwUAMIGoMQswCQYD
 VQQGEwJQSDEWMBQGA1UECBMNTnVldmEgVml6Y2F5YTEOMAwGA1UEBxMFRHVwYXgx
 ETAPBgNVBAoTCFBFUlNPTkFMMREwDwYDVQQLEwhQRVJTT05BTDEUMBIGA1UEAxML
@@ -113,7 +112,7 @@ kjwD1r974bUy96kLqvn2FnQeJYFE/M/QWBfx0HcS1sOaWidMSVepbpQJVMYZ9jVx
 n2mKPwrIrH9l8Fah+RFIYwCXFoNwyBSPWzHH3Od8JKz6Q+6N1hTUEHj8TI2iyB/z
 bUkl2LOZ9BkVg7hfkH+WrACZRymLXHrjePDhBRjJ57U+d4bmLr+aQz3R6aI/gTjX
 LIBsEs5oIQrq435Y
-....-----END CERTIFICATE-----
+-----END CERTIFICATE-----
 EOF1
 #server.crt HERE
 cat <<EOF2> /etc/openvpn/server.crt #or /etc/openvpn/easy-rsa/keys/server.crt #or /usr/share/doc/openvpn/examples/sample-keys/server.crt
@@ -383,6 +382,6 @@ http_port 127.0.0.1:8989
 cache_peer 127.0.0.1 parent SquidCacheHelper 7 no-query no-digest default
 cache deny all
 mySquid
- sed -i "s|SquidCacheHelper|$privoxy_port1|g" /etc/squid/squid.conf
+ sed -i "s|SquidCacheHelper|$Privoxy_Port1|g" /etc/squid/squid.conf
 clear
 echo 'Installation Complete!'
