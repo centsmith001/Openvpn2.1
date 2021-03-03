@@ -1,89 +1,62 @@
 #!/bin/bash
-#server local time
-VPS_TIME='Asia/Manila'
-function InstUpdates(){
- export DEBIAN_FRONTEND=noninteractive
- apt-get update
- apt-get upgrade -y
- 
- # Removing some firewall tools that may affect other services
- apt-get remove --purge ufw firewalld -y
-
- 
- # Installing some important machine essentials
- apt-get install nano wget curl zip unzip tar gzip p7zip-full bc rc openssl cron net-tools dnsutils dos2unix screen bzip2 ccrypt -y
- 
- 
- # Installing a text colorizer
- gem install lolcat
-
- # Trying to remove obsolette packages after installation
- apt-get autoremove -y
-}
-InstUpdates
-
-#adding ports
+#ports
 openvpn_port='110'
-Privoxy_Port1='8000'
-Privoxy_Port2='8080'
-function privoxy (){
- #Removing Duplicate privoxy config
- apt-get install privoxy -y
- rm -rf /etc/privoxy/config*
- # Creating Privoxy server config using cat eof tricks
- cat <<'myPrivoxy' > /etc/privoxy/config
-# My Privoxy Server Config
-user-manual /usr/share/doc/privoxy/user-manual
-confdir /etc/privoxy
-logdir /var/log/privoxy
-filterfile default.filter
-logfile logfile
-listen-address 0.0.0.0:Privoxy_Port1
-listen-address 0.0.0.0:Privoxy_Port2
-toggle 1
-enable-remote-toggle 0
-enable-remote-http-toggle 0
-enable-edit-actions 0
-enforce-blocks 0
-buffer-limit 4096
-enable-proxy-authentication-forwarding 1
-forwarded-connect-retries 1
-accept-intercepted-requests 1
-allow-cgi-request-crunching 1
-split-large-forms 0
-keep-alive-timeout 5
-tolerate-pipelining 1
-socket-timeout 300
-permit-access 0.0.0.0/0 IP-ADDRESS
-myPrivoxy
-    }
-privoxy
+privoxy_port1='8080'
+privoxy_port2='8000'
 
- # Setting machine's IP Address inside of our privoxy config(security that only allows this machine to use this proxy server)
- sed -i "s|IP-ADDRESS|$IPADDR|g" /etc/privoxy/config
- 
- # Setting privoxy ports
- sed -i "s|Privoxy_Port1|$Privoxy_Port1|g" /etc/privoxy/config
- sed -i "s|Privoxy_Port2|$Privoxy_Port2|g" /etc/privoxy/config
+function InsUpdate (){
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get upgrade -y
+  #installing some machine essenstials
+  apt-get install zip unzip tar gzip bc rc openssl dnsutils -y
+ # Installing OpenVPN by pulling its repository inside sources.list file 
+ rm -rf /etc/apt/sources.list.d/openvpn*
+ echo "deb http://build.openvpn.net/debian/openvpn/stable $(lsb_release -sc) main" > /etc/apt/sources.list.d/openvpn.list
+ wget -qO - http://build.openvpn.net/debian/openvpn/stable/pubkey.gpg|apt-key add -
+ apt-get update
+ apt-get install openvpn -y
+  
+}
 
-function openvpn (){
-    #removing openvpn files
-    rm -Rf /etc/openvpn/*
-    echo >> /etc/sysctl.conf net.ipv4.ip_forward = 1
-    sysctl -p
-    #make directories
-    mkdir /etc/openvpn/
-    mkdir /etc/openvpn/server
-    mkdir /etc/openvpn/client/
-    mkdir /etc/openvpn/easy-rsa
-    mkdir /etc/openvpn/easy-rsa/keys
-    mkdir /etc/openvpn/xFocus
-    #touch /etc/openvpn/xFocus/config.ovpn
-#install openvpn
-    apt-get install openvpn -y
-    cp -r /usr/share/easy-rsa /etc/openvpn/
-    #ca.crt here
-    cat <<EOF1> /etc/openvpn/easy-rsa/keys/ca.crt #or /usr/share/doc/openvpn/examples/sample-keys/ca.crt
+function InsOpenvpn (){
+ # Checking if openvpn folder is accidentally deleted or purged
+ if [[ ! -e /etc/openvpn ]]; then
+  mkdir -p /etc/openvpn
+ fi 
+ #remove all exisiting openvpn server files
+ rm -rf /etc/openvpn/*
+ #ca.crt,server.crt,server.key 
+cat <<EOF1> /etc/openvpn/server.conf
+port $openvpn_port
+proto tcp
+dev tun
+ca /etc/openvpn/ca.crt
+cert /etc/openvpn/server.crt
+key /etc/openvpn/server.key
+dh /etc/openvpn/dh.pem
+server 10.8.0.0 255.255.255.0
+push "redirect-gateway def1"
+
+push "dhcp-option DNS 208.67.222.222"
+push "dhcp-option DNS 208.67.220.220"
+duplicate-cn
+cipher AES-256-CBC
+tls-version-min 1.2
+tls-cipher TLS-DHE-RSA-WITH-AES-256-GCM-SHA384:TLS-DHE-RSA-WITH-AES-256-CBC-SHA256:TLS-DHE-RSA-WITH-AES-128-GCM-SHA256:TLS-DHE-RSA-WITH-AES-128-CBC-SHA256
+auth SHA512
+auth-nocache
+keepalive 20 60
+persist-key
+persist-tun
+compress lz4
+daemon
+user nobody
+group nogroup
+log-append /var/log/openvpn.log
+verb 2
+EOF1
+cat <<EOF2> /etc/openvpn/ca.crt #or /usr/share/doc/openvpn/examples/sample-keys/ca.crt
 -----BEGIN CERTIFICATE-----
 MIIE6DCCA9CgAwIBAgIJAISjqDk245utMA0GCSqGSIb3DQEBCwUAMIGoMQswCQYD
 VQQGEwJQSDEWMBQGA1UECBMNTnVldmEgVml6Y2F5YTEOMAwGA1UEBxMFRHVwYXgx
@@ -113,9 +86,8 @@ n2mKPwrIrH9l8Fah+RFIYwCXFoNwyBSPWzHH3Od8JKz6Q+6N1hTUEHj8TI2iyB/z
 bUkl2LOZ9BkVg7hfkH+WrACZRymLXHrjePDhBRjJ57U+d4bmLr+aQz3R6aI/gTjX
 LIBsEs5oIQrq435Y
 -----END CERTIFICATE-----
-EOF1
-#server.crt HERE
-cat <<EOF2> /etc/openvpn/server.crt #or /etc/openvpn/easy-rsa/keys/server.crt #or /usr/share/doc/openvpn/examples/sample-keys/server.crt
+EOF2
+cat <<EOF3> /etc/openvpn/server.crt #or /etc/openvpn/easy-rsa/keys/server.crt #or /usr/share/doc/openvpn/examples/sample-keys/server.crt
 Certificate:
     Data:
         Version: 3 (0x2)
@@ -216,9 +188,9 @@ NS3HGciTq/w24ob7NJYwa+eQw3REny739qOuEawupDc7UxqXB2iHwtoq5hb5LH71
 wNEW0gFvVJ0cCLY6eaN+hoPuq973YyTVxJtDtuM3IKWLuc8Togep7+Xih4kDCRxw
 PebJ0Z0am6eCgkUI+rFd5AXUGmphZdLVYyA=
 -----END CERTIFICATE-----
-EOF2
-#server.key HERE
-cat <<EOF3>> /etc/openvpn/easy-rsa/keys/server.key #/usr/share/doc/openvpn/examples/sample-keys/server.key
+EOF3
+
+cat <<EOF4> /etc/openvpn/server.key
 -----BEGIN PRIVATE KEY-----
 MIIEwAIBADANBgkqhkiG9w0BAQEFAASCBKowggSmAgEAAoIBAQC/rlDXzTx3kK69
 Nm0gQILzb8PRWj8hIusgrRPbw66xOdQLurnxeTUEp5Vl2TiuuLDbrdUH/POQIqSc
@@ -247,17 +219,67 @@ v9VJLWEMPuBUbMMOuR119P8YArNPPx7PTXi4XzbPv7rf99lfuizXZBzmGjKqEOWH
 EMtP6kaosO6oZcU6L3w8izeFqYFn+hxL9DENC11xKpCoqFkYKNkKuqghi9KIjoVt
 TVxXp5vGwz5umT+nrSnjrkgO6h8=
 -----END PRIVATE KEY-----
-EOF3
-#singin the server key using CA
-openssl dhparam -out /etc/openvpn/dh.pem 2048
-#configure openvn server
-cat <<EOF4> /etc/openvpn/server.conf
+EOF4
+ # Getting all dns inside resolv.conf then use as Default DNS for our openvpn server
+ grep -v '#' /etc/resolv.conf | grep 'nameserver' | grep -E -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | while read -r line; do
+	echo "push \"dhcp-option DNS $line\"" >> /etc/openvpn/server.conf
+done
+
+ # setting openvpn server ports
+ sed -i 's/openvpn_port/$openvpn_port/g' /etc/openvpn/server.conf 
+
+ # Generating openvpn dh.pem file using openssl
+ openssl dhparam -out /etc/openvpn/dh.pem 2048
+ 
+ # Getting some OpenVPN plugins for unix authentication
+ wget -qO /etc/openvpn/b.zip 'https://raw.githubusercontent.com/Bonveio/BonvScripts/master/openvpn_plugin64'
+ unzip -qq /etc/openvpn/b.zip -d /etc/openvpn
+ rm -f /etc/openvpn/b.zip
+
+ # Some workaround for OpenVZ machines for "Startup error" openvpn service
+ if [[ "$(hostnamectl | grep -i Virtualization | awk '{print $2}' | head -n1)" == 'openvz' ]]; then
+ sed -i 's|LimitNPROC|#LimitNPROC|g' /lib/systemd/system/openvpn*
+ systemctl daemon-reload
+fi 
+ 
+ # Allow IPv4 Forwarding
+ sed -i '/net.ipv4.ip_forward.*/d' /etc/sysctl.conf
+ echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/20-openvpn.conf
+ sysctl --system &> /dev/null 
+
+ # Iptables Rule for OpenVPN server
+ PUBLIC_INET="$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)"
+ IPCIDR='10.200.0.0/16'
+ iptables -I FORWARD -s $IPCIDR -j ACCEPT
+ iptables -t nat -A POSTROUTING -o $PUBLIC_INET -j MASQUERADE
+ iptables -t nat -A POSTROUTING -s $IPCIDR -o $PUBLIC_INET -j MASQUERADE
+
+ # Enabling IPv4 Forwarding
+ echo 1 > /proc/sys/net/ipv4/ip_forward
+ 
+ # Starting OpenVPN server
+ systemctl start openvpn@server
+ systemctl enable openvpn@server
+ 
+ # Pulling OpenVPN no internet fixer script
+ wget -qO /etc/openvpn/openvpn.bash "https://raw.githubusercontent.com/Bonveio/BonvScripts/master/openvpn.bash"
+ chmod +x /etc/openvpn/openvpn.bash
+}
+function OpenvpnConfig (){
+#directory for config
+mkdir /etc/openvpn
+mkdir /etc/openvpn/server.conf
+mkdir /etc/openvpn/xFocus
+mkdir /etc/openvpn/dh.pem
+
+#setting configuration
+cat <<EOF5> /etc/openvpn/server.conf
 port $openvpn_port
 proto tcp
 dev tun
-ca /usr/share/doc/openvpn/examples/sample-keys/ca.crt
+ca /etc/openvpn/ca.crt
 cert /etc/openvpn/server.crt
-key /etc/openvpn/easy-rsa/keys/server.key
+key /etc/openvpn/server.key
 dh /etc/openvpn/dh.pem
 server 10.8.0.0 255.255.255.0
 push "redirect-gateway def1"
@@ -279,52 +301,9 @@ user nobody
 group nogroup
 log-append /var/log/openvpn.log
 verb 2
-EOF4
-#start openvpn
-systemctl start openvpn@server
-systemctl enable openvpn@server
-#generate client configurstion
-cat <<EOF5> /etc/openvpn/client/client.ovpn
-client
-dev tun
-proto tcp
-remote IPADDR $openvpn_port
-ca ca.crt
-cert client.crt
-key client.key
-cipher AES-256-CBC
-auth SHA512
-auth-nocache
-tls-version-min 1.2
-tls-cipher TLS-DHE-RSA-WITH-AES-256-GCM-SHA384:TLS-DHE-RSA-WITH-AES-256-CBC-SHA256:TLS-DHE-RSA-WITH-AES-128-GCM-SHA256:TLS-DHE-RSA-WITH-AES-128-CBC-SHA256
-resolv-retry infinite
-compress lz4
-nobind
-persist-key
-persist-tun
-mute-replay-warnings
-verb 2
 EOF5
-#systemctl status openvpn@server
-}
-openvpn
 
-function ip_address(){
-  local IP="$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )"
-  [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipv4.icanhazip.com )"
-  [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipinfo.io/ip )"
-  [ ! -z "${IP}" ] && echo "${IP}" || echo
-}
-IPADDR="$(ip_address)"
-
-function ConfStartup(){
- # Daily reboot time of our machine
- # For cron commands, visit https://crontab.guru
- echo -e "0 4\t* * *\troot\treboot" > /etc/cron.d/b_reboot_job
- }
- ConfStartup
- #creating user's opvn config
-cat <<EOF999> /etc/openvpn/xFocus/config.ovpn
+cat <<EOF6> /etc/openvpn/xFocus/config.ovpn
 client
 dev tun
 proto tcp
@@ -345,14 +324,60 @@ keysize 0
 comp-lzo
 setenv CLIENT_CERT 0
 reneg-sec 0
-verb 1
-http-proxy $IPADDR $Privoxy_Port1
-
+verb 3
+http-proxy $IPADDR $privoxy_port1
+http-proxy-option VERSION 1.1
+http-proxy-option CUSTOM-HEADER "Host: akmstatic.ml.youngjoygame.com.akamaized.net"
+http-proxy-option CUSTOM-HEADER "X-Online-Host: akmstatic.ml.youngjoygame.com.akamaized.net"
+http-proxy-option CUSTOM-HEADER "X-Forward-Host: akmstatic.ml.youngjoygame.com.akamaized.net"
+http-proxy-option CUSTOM-HEADER "Connection: Keep-Alive"
+<auth-user-pass>
+root
+1tester1994@Louie
+</auth-user-pass>
 <ca>
-$(cat /etc/openvpn/easy-rsa/keys/ca.crt)
+$(cat /etc/openvpn/ca.crt)
 </ca>
-EOF999
-ip_address
+EOF6
+}
+function Insproxy (){
+ # Removing Duplicate privoxy config
+ rm -rf /etc/privoxy/config*
+ 
+ # Creating Privoxy server config using cat eof tricks
+ cat <<'myPrivoxy' > /etc/privoxy/config
+# My Privoxy Server Config
+user-manual /usr/share/doc/privoxy/user-manual
+confdir /etc/privoxy
+logdir /var/log/privoxy
+filterfile default.filter
+logfile logfile
+listen-address 0.0.0.0:privoxy_port1
+listen-address 0.0.0.0:privoxy_port2
+toggle 1
+enable-remote-toggle 0
+enable-remote-http-toggle 0
+enable-edit-actions 0
+enforce-blocks 0
+buffer-limit 4096
+enable-proxy-authentication-forwarding 1
+forwarded-connect-retries 1
+accept-intercepted-requests 1
+allow-cgi-request-crunching 1
+split-large-forms 0
+keep-alive-timeout 5
+tolerate-pipelining 1
+socket-timeout 300
+permit-access 0.0.0.0/0 IP-ADDRESS
+myPrivoxy
+
+ # Setting machine's IP Address inside of our privoxy config(security that only allows this machine to use this proxy server)
+ sed -i "s|IP-ADDRESS|$IPADDR|g" /etc/privoxy/config
+ 
+ # Setting privoxy ports
+ sed -i "s|Privoxy_Port1|$privoxy_port1|g" /etc/privoxy/config
+ sed -i "s|Privoxy_Port2|$privoxy_port2|g" /etc/privoxy/config
+
  # I'm setting Some Squid workarounds to prevent Privoxy's overflowing file descriptors that causing 50X error when clients trying to connect to your proxy server(thanks for this trick @homer_simpsons)
  rm -rf /etc/squid/sq*
  cat <<'mySquid' > /etc/squid/squid.conf
@@ -382,6 +407,23 @@ http_port 127.0.0.1:8989
 cache_peer 127.0.0.1 parent SquidCacheHelper 7 no-query no-digest default
 cache deny all
 mySquid
- sed -i "s|SquidCacheHelper|$Privoxy_Port1|g" /etc/squid/squid.conf
-clear
-echo 'Installation Complete!'
+ sed -i "s|SquidCacheHelper|$privoxy_port1|g" /etc/squid/squid.conf
+
+ # Starting Proxy server
+ echo -e "Restarting proxy server.."
+ systemctl restart privoxy
+ systemctl restart squid
+}
+function ip_address(){
+  local IP="$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )"
+  [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipv4.icanhazip.com )"
+  [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipinfo.io/ip )"
+  [ ! -z "${IP}" ] && echo "${IP}" || echo
+} 
+IPADDR="$(ip_address)"
+InsUpdate
+InsOpenvpn
+OpenvpnConfig
+Insproxy
+ip_address
+systemctl status openvpn@server
